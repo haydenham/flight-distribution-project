@@ -59,6 +59,14 @@ columns include: `FlightDate, Reporting_Airline, Flight_Number_Reporting_Airline
 Tail_Number, Origin, Dest, OriginCityName, DestCityName, CRSDepTime, CRSArrTime,
 DepTime, ArrTime, DepDelay, ArrDelay, Cancelled`.
 
+**Any time span works.** The app doesn't assume a specific month or year — any BTS
+extract with the columns and formats above will load (a single day, a different month,
+a full year). Just enter a date present in your data. Two things to note:
+- Propagation is computed **within a single calendar day** — cascades and connections
+  that cross midnight are not tracked.
+- The frontend's default date (`2022-12-19`) is just a starting value; change it to any
+  date in your dataset.
+
 ---
 
 ## Running it
@@ -98,8 +106,16 @@ No API keys or external services are required — the computation is entirely lo
 
 ---
 
-## Example
+## Examples to try
 
-Try **AA 1146 on 2022-12-19** (aircraft N109UW flies 7 legs that day). Compare a
-**15-minute** delay (absorbed — few effects) against **120+ minutes** (a multi-leg
-tail cascade plus broken connections at BOS).
+All from the December 2022 dataset. Use `GET /flights?date=&airline=` to find more.
+
+| Flight | Date | Delay | What it shows |
+|---|---|---|---|
+| **AA 1146** PHL→BOS | 2022-12-19 | 15 vs 120+ | Aircraft N109UW flies 7 legs. At 15 min the slack absorbs it (few effects); at 120+ min you get a multi-leg tail cascade (depth grows to 3) plus many broken BOS connections. The clearest demo of both mechanisms. |
+| **DL 2979** LAX→ATL | 2022-12-22 | 120 | Huge connection fan-out at the ATL hub — 70+ at-risk connections. Shows how a hub amplifies a single delay. |
+| **WN 576** CLE→BWI | 2022-12-22 | 120 | Southwest point-to-point: a depth-2 aircraft cascade across consecutive legs. |
+| **B6 2867** MCO→PSE | 2022-12-22 | 120 | A contained case — only 2 downstream flights and no broken connections. Shows propagation doesn't always explode. |
+
+**Tip:** for any flight, slide the delay from low to high to watch the tail cascade
+deepen and connections begin to break.
