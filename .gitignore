@@ -1,0 +1,27 @@
+# ── Data (240 MB — exceeds GitHub's 100 MB limit; not committed) ──
+Flight_Data_correct.csv
+*.csv
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# ── Node / frontend ──
+node_modules/
+dist/
+.vite/
+*.log
+
+# ── Secrets / env ──
+.env
+.env.*
+
+# ── OS / editor ──
+.DS_Store
+.idea/
+.vscode/
