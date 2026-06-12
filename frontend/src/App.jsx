@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const API_BASE = "http://localhost:8000";
 
@@ -93,6 +93,18 @@ function routeLabel(f) {
   return `${f.origin} \u2192 ${f.dest}`;
 }
 
+function formatDepTime(hhmm) {
+  // hhmm is an integer like 830 or 1745.
+  const t = String(hhmm).padStart(4, "0");
+  return `${t.slice(0, 2)}:${t.slice(2)}`;
+}
+
+function flightOptionLabel(f) {
+  return `${f.airline} ${f.flight_number} \u2014 ${routeLabel(f)} (${formatDepTime(
+    f.scheduled_dep
+  )})`;
+}
+
 export default function App() {
   const [flightDate, setFlightDate] = useState("2022-12-19");
   const [airline, setAirline] = useState("AA");
@@ -102,6 +114,76 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [flightOptions, setFlightOptions] = useState([]);
+  const [flightsLoading, setFlightsLoading] = useState(false);
+  const [airlineOptions, setAirlineOptions] = useState([]);
+
+  // Load the airlines that operated on the chosen date so the user can pick a
+  // carrier code from a dropdown instead of memorising it.
+  useEffect(() => {
+    if (!flightDate) {
+      setAirlineOptions([]);
+      return;
+    }
+    let cancelledFetch = false;
+    const params = new URLSearchParams({ date: flightDate });
+    fetch(`${API_BASE}/airlines?${params.toString()}`)
+      .then((resp) => (resp.ok ? resp.json() : []))
+      .then((data) => {
+        if (cancelledFetch) return;
+        const list = Array.isArray(data) ? data : [];
+        setAirlineOptions(list);
+        // Clear the selected airline if it didn't fly on this date.
+        if (list.length > 0 && !list.includes(airline.toUpperCase())) {
+          setAirline("");
+        }
+      })
+      .catch(() => {
+        if (!cancelledFetch) setAirlineOptions([]);
+      });
+    return () => {
+      cancelledFetch = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flightDate]);
+
+  // Load the flights available for the chosen date + airline so the user can
+  // pick one from a dropdown instead of guessing a flight number.
+  useEffect(() => {
+    if (!flightDate || !airline) {
+      setFlightOptions([]);
+      return;
+    }
+    let cancelledFetch = false;
+    setFlightsLoading(true);
+    const params = new URLSearchParams({
+      date: flightDate,
+      airline: airline.toUpperCase(),
+      limit: "1000",
+    });
+    fetch(`${API_BASE}/flights?${params.toString()}`)
+      .then((resp) => (resp.ok ? resp.json() : []))
+      .then((data) => {
+        if (cancelledFetch) return;
+        const list = Array.isArray(data) ? data : [];
+        list.sort((a, b) => a.scheduled_dep - b.scheduled_dep);
+        setFlightOptions(list);
+        // Clear the selected flight if it's no longer in the list.
+        if (!list.some((f) => String(f.flight_number) === String(flightNumber))) {
+          setFlightNumber("");
+        }
+      })
+      .catch(() => {
+        if (!cancelledFetch) setFlightOptions([]);
+      })
+      .finally(() => {
+        if (!cancelledFetch) setFlightsLoading(false);
+      });
+    return () => {
+      cancelledFetch = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flightDate, airline]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -157,23 +239,45 @@ export default function App() {
             </div>
             <div style={styles.field}>
               <label style={styles.label}>Airline</label>
-              <input
-                style={{ ...styles.input, width: "80px" }}
-                type="text"
-                maxLength={2}
-                placeholder="e.g. AA"
-                value={airline}
+              <select
+                style={{ ...styles.input, minWidth: "120px" }}
+                value={airline.toUpperCase()}
                 onChange={(e) => setAirline(e.target.value)}
-              />
+                disabled={airlineOptions.length === 0}
+              >
+                <option value="">
+                  {airlineOptions.length === 0
+                    ? "No airlines for this date"
+                    : "Select an airline"}
+                </option>
+                {airlineOptions.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </select>
             </div>
             <div style={styles.field}>
-              <label style={styles.label}>Flight number</label>
-              <input
-                style={{ ...styles.input, width: "120px" }}
-                type="number"
+              <label style={styles.label}>Flight</label>
+              <select
+                style={{ ...styles.input, minWidth: "260px" }}
                 value={flightNumber}
                 onChange={(e) => setFlightNumber(e.target.value)}
-              />
+                disabled={flightsLoading || flightOptions.length === 0}
+              >
+                <option value="">
+                  {flightsLoading
+                    ? "Loading flights…"
+                    : flightOptions.length === 0
+                    ? "No flights for this date/airline"
+                    : `Select a flight (${flightOptions.length} available)`}
+                </option>
+                {flightOptions.map((f) => (
+                  <option key={f.flight_number} value={f.flight_number}>
+                    {flightOptionLabel(f)}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -202,8 +306,12 @@ export default function App() {
             <div style={styles.field}>
               <button
                 type="submit"
-                style={loading ? styles.buttonDisabled : styles.button}
-                disabled={loading}
+                style={
+                  loading || !flightNumber
+                    ? styles.buttonDisabled
+                    : styles.button
+                }
+                disabled={loading || !flightNumber}
               >
                 {loading ? "Analyzing\u2026" : "Analyze Disruption"}
               </button>

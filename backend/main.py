@@ -43,6 +43,17 @@ def health():
     return {"status": "ok", "rows": int(len(df))}
 
 
+@app.get("/airlines")
+def airlines(date: str | None = Query(default=None)):
+    """Distinct reporting airlines, optionally limited to a given date."""
+    df = app.state.df
+    sub = df
+    if date:
+        sub = sub[sub["FlightDate"] == str(date)]
+    codes = sorted(sub["Reporting_Airline"].dropna().unique().tolist())
+    return [str(c) for c in codes]
+
+
 @app.get("/flights")
 def flights(
     date: str | None = Query(default=None),
@@ -65,6 +76,7 @@ def flights(
                 "flight_number": int(row.Flight_Number_Reporting_Airline),
                 "origin": str(row.Origin),
                 "dest": str(row.Dest),
+                "scheduled_dep": int(row.CRSDepTime),
             }
         )
     return result
